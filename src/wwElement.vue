@@ -517,10 +517,37 @@ export default {
                 return;
             }
             const textarea = inputRef.value;
-            // Reset height to auto to get the correct scrollHeight
+            
+            // Temporarily remove height constraint to allow proper measurement
+            // This ensures scrollHeight accurately measures ALL content including blank lines
+            const previousHeight = textarea.style.height;
             textarea.style.height = 'auto';
-            // Set height to scrollHeight to fit content
-            textarea.style.height = `${textarea.scrollHeight}px`;
+            
+            // Force a reflow to ensure accurate scrollHeight calculation
+            // This is important for blank lines and initial content
+            void textarea.offsetHeight;
+            
+            // Get computed styles to account for box-sizing, padding, and borders
+            const computedStyle = window.getComputedStyle(textarea);
+            const boxSizing = computedStyle.boxSizing;
+            
+            // scrollHeight includes ALL content (text, line breaks, blank lines) + padding (top and bottom), but NOT borders
+            // Blank lines are naturally included because scrollHeight measures the full scrollable content
+            let height = textarea.scrollHeight;
+            
+            // Account for box-sizing model
+            if (boxSizing === 'border-box') {
+                // With border-box, the height we set includes padding and borders
+                // scrollHeight includes content + padding, so we need to add borders
+                const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
+                const borderBottom = parseFloat(computedStyle.borderBottomWidth) || 0;
+                height = textarea.scrollHeight + borderTop + borderBottom;
+            }
+            // For content-box (default), scrollHeight already accounts for padding correctly
+            // The height we set is content height, and padding/borders are added automatically
+            
+            // Set height to fit content (accounting for padding, borders, and blank lines)
+            textarea.style.height = `${height}px`;
         };
 
         const dynamicHeightStyle = computed(() => {
