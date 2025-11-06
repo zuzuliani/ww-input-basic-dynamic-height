@@ -66,7 +66,7 @@
 </template>
 
 <script>
-import { computed, inject, watch, nextTick, ref, onMounted } from 'vue';
+import { computed, inject, watch, nextTick, ref, onMounted, onUnmounted } from 'vue';
 import { useInput } from './composables/useInput';
 import { useCurrency } from './composables/useCurrency';
 /* wwEditor:start */
@@ -511,6 +511,29 @@ export default {
             step: stepAttribute.value,
         }));
 
+        // Helper function to check if element is visible
+        const isElementVisible = (element) => {
+            if (!element) return false;
+            const style = window.getComputedStyle(element);
+            // Check if element is not hidden by display or visibility
+            if (style.display === 'none' || style.visibility === 'hidden') {
+                return false;
+            }
+            // Check if element has dimensions (not collapsed)
+            if (element.offsetWidth === 0 && element.offsetHeight === 0) {
+                // Check parent visibility
+                let parent = element.parentElement;
+                while (parent && parent !== document.body) {
+                    const parentStyle = window.getComputedStyle(parent);
+                    if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden') {
+                        return false;
+                    }
+                    parent = parent.parentElement;
+                }
+            }
+            return true;
+        };
+
         // Dynamic height functionality for textarea
         const adjustTextareaHeight = () => {
             if (props.content.type !== 'textarea' || !props.content.dynamicHeight || !inputRef.value) {
@@ -518,9 +541,19 @@ export default {
             }
             const textarea = inputRef.value;
             
+            // Check if element is visible - if not, scrollHeight will be 0 or incorrect
+            if (!isElementVisible(textarea)) {
+                // If not visible, schedule a retry after a short delay
+                setTimeout(() => {
+                    if (inputRef.value && isElementVisible(inputRef.value)) {
+                        adjustTextareaHeight();
+                    }
+                }, 50);
+                return;
+            }
+            
             // Temporarily remove height constraint to allow proper measurement
             // This ensures scrollHeight accurately measures ALL content including blank lines
-            const previousHeight = textarea.style.height;
             textarea.style.height = 'auto';
             
             // Force a reflow to ensure accurate scrollHeight calculation
@@ -534,6 +567,13 @@ export default {
             // scrollHeight includes ALL content (text, line breaks, blank lines) + padding (top and bottom), but NOT borders
             // Blank lines are naturally included because scrollHeight measures the full scrollable content
             let height = textarea.scrollHeight;
+            
+            // Only proceed if we have a valid scrollHeight (element is visible and rendered)
+            if (height === 0) {
+                // Element might not be fully rendered yet, retry
+                setTimeout(() => adjustTextareaHeight(), 50);
+                return;
+            }
             
             // Account for box-sizing model
             if (boxSizing === 'border-box') {
@@ -594,15 +634,83 @@ export default {
             { immediate: true }
         );
 
+        // Observers to detect when element becomes visible
+        let intersectionObserver = null;
+        let mutationObserver = null;
+
         // Adjust height on mount if dynamic height is enabled (fallback)
         onMounted(() => {
-            if (props.content.type === 'textarea' && props.content.dynamicHeight) {
+            if (props.content.type === 'textarea' && props.content.dynamicHeight && inputRef.value) {
+                const textarea = inputRef.value;
+                
                 // Use double nextTick to ensure DOM is fully rendered with value
                 nextTick(() => {
                     nextTick(() => {
                         adjustTextareaHeight();
                     });
                 });
+
+                // Set up IntersectionObserver to detect when element becomes visible
+                if ('IntersectionObserver' in window) {
+                    intersectionObserver = new IntersectionObserver(
+                        (entries) => {
+                            entries.forEach((entry) => {
+                                if (entry.isIntersecting && entry.target === textarea) {
+                                    // Element became visible, adjust height
+                                    nextTick(() => {
+                                        adjustTextareaHeight();
+                                    });
+                                }
+                            });
+                        },
+                        {
+                            threshold: 0.01, // Trigger when any part is visible
+                        }
+                    );
+                    intersectionObserver.observe(textarea);
+                }
+
+                // Set up MutationObserver to watch for style changes on element and parents
+                if ('MutationObserver' in window) {
+                    let mutationTimeout = null;
+                    mutationObserver = new MutationObserver(() => {
+                        // Debounce to avoid excessive calls
+                        if (mutationTimeout) {
+                            clearTimeout(mutationTimeout);
+                        }
+                        mutationTimeout = setTimeout(() => {
+                            // Check if element just became visible
+                            if (inputRef.value && isElementVisible(inputRef.value)) {
+                                nextTick(() => {
+                                    adjustTextareaHeight();
+                                });
+                            }
+                        }, 50);
+                    });
+
+                    // Observe the textarea and its parent chain for style/attribute changes
+                    let element = textarea;
+                    while (element && element !== document.body) {
+                        mutationObserver.observe(element, {
+                            attributes: true,
+                            attributeFilter: ['style', 'class'],
+                            subtree: false,
+                        });
+                        element = element.parentElement;
+                    }
+                }
+            }
+        });
+
+        // Clean up observers on unmount
+        onUnmounted(() => {
+            if (intersectionObserver) {
+                intersectionObserver.disconnect();
+                intersectionObserver = null;
+            }
+            if (mutationObserver) {
+                mutationObserver.disconnect();
+                mutationObserver = null;
             }
         });
 
