@@ -550,14 +550,31 @@ export default {
                         adjustTextareaHeight();
                     });
                 }
-            }
+            },
+            { immediate: true }
         );
 
-        // Adjust height on mount if dynamic height is enabled
+        // Watch for inputRef availability to adjust height on mount with initial value
+        watch(
+            () => inputRef.value,
+            (newRef) => {
+                if (newRef && props.content.type === 'textarea' && props.content.dynamicHeight) {
+                    nextTick(() => {
+                        adjustTextareaHeight();
+                    });
+                }
+            },
+            { immediate: true }
+        );
+
+        // Adjust height on mount if dynamic height is enabled (fallback)
         onMounted(() => {
             if (props.content.type === 'textarea' && props.content.dynamicHeight) {
+                // Use double nextTick to ensure DOM is fully rendered with value
                 nextTick(() => {
-                    adjustTextareaHeight();
+                    nextTick(() => {
+                        adjustTextareaHeight();
+                    });
                 });
             }
         });
