@@ -746,6 +746,41 @@ export default {
             }
         }
 
+        function clearInput() {
+            if (isReadonly.value) return;
+
+            // Determine the appropriate empty value based on input type
+            let emptyValue = '';
+            if (type.value === 'currency') {
+                emptyValue = 0;
+            } else if (type.value === 'number' || type.value === 'decimal') {
+                // For number types, use empty string (will be handled by the input)
+                emptyValue = '';
+            }
+
+            // Clear the actual value
+            setValue(emptyValue);
+
+            // Clear display value
+            displayValue.value = emptyValue;
+
+            // For currency type, also clear the currency display value
+            if (props.content.type === 'currency') {
+                currencyDisplayValue.value = '';
+            }
+
+            // For textarea with dynamic height, adjust height after clearing
+            if (props.content.type === 'textarea' && props.content.dynamicHeight) {
+                nextTick(() => {
+                    adjustTextareaHeight();
+                });
+            }
+
+            // Trigger change event
+            emit('trigger-event', { name: 'change', event: { value: emptyValue } });
+            emit('element-event', { type: 'change', value: { value: emptyValue } });
+        }
+
         watch(
             () => props.content.value,
             v => {
@@ -849,6 +884,7 @@ export default {
             handleColorInputClick,
             dynamicHeightStyle,
             handleTextareaInput,
+            clearInput,
             // Currency-related
             handleCurrencyInput,
             handleCurrencyKeydown,
