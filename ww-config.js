@@ -32,6 +32,7 @@ export default {
                 'displayPassword',
                 'rows',
                 'resize',
+                'dynamicHeight',
                 'currencyShowSymbol',
                 'currencySymbol',
                 'currencySymbolPosition',
@@ -271,6 +272,19 @@ export default {
             hidden: content => content.type !== 'textarea',
             defaultValue: false,
             classes: true,
+        },
+        dynamicHeight: {
+            label: { en: 'Dynamic Height', fr: 'Hauteur dynamique' },
+            type: 'OnOff',
+            hidden: content => content.type !== 'textarea',
+            defaultValue: false,
+            bindable: true,
+            /* wwEditor:start */
+            bindingValidation: {
+                type: 'boolean',
+                tooltip: 'A boolean that defines if the textarea height should automatically adjust to fit content: `true | false`',
+            },
+            /* wwEditor:end */
         },
         min: {
             label: { en: 'Min number', fr: 'Min number' },

@@ -45,7 +45,8 @@
         v-bind="textareaBindings"
         class="ww-input-basic"
         :class="{ editing: isEditing }"
-        @input="handleManualInput"
+        :style="[textareaBindings.style, dynamicHeightStyle]"
+        @input="handleTextareaInput"
         @focus="isReallyFocused = true"
         @blur="onBlur"
         @keyup.enter="onEnter"
@@ -65,7 +66,7 @@
 </template>
 
 <script>
-import { computed, inject, watch, nextTick, ref } from 'vue';
+import { computed, inject, watch, nextTick, ref, onMounted } from 'vue';
 import { useInput } from './composables/useInput';
 import { useCurrency } from './composables/useCurrency';
 /* wwEditor:start */
@@ -510,6 +511,57 @@ export default {
             step: stepAttribute.value,
         }));
 
+        // Dynamic height functionality for textarea
+        const adjustTextareaHeight = () => {
+            if (props.content.type !== 'textarea' || !props.content.dynamicHeight || !inputRef.value) {
+                return;
+            }
+            const textarea = inputRef.value;
+            // Reset height to auto to get the correct scrollHeight
+            textarea.style.height = 'auto';
+            // Set height to scrollHeight to fit content
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        };
+
+        const dynamicHeightStyle = computed(() => {
+            if (props.content.type !== 'textarea' || !props.content.dynamicHeight) {
+                return {};
+            }
+            return {
+                overflow: 'hidden',
+                resize: 'none',
+            };
+        });
+
+        const handleTextareaInput = event => {
+            handleManualInput(event);
+            // Adjust height after input
+            nextTick(() => {
+                adjustTextareaHeight();
+            });
+        };
+
+        // Watch for value changes to adjust height
+        watch(
+            [() => displayValue.value, () => props.content.dynamicHeight, () => props.content.type],
+            () => {
+                if (props.content.type === 'textarea' && props.content.dynamicHeight) {
+                    nextTick(() => {
+                        adjustTextareaHeight();
+                    });
+                }
+            }
+        );
+
+        // Adjust height on mount if dynamic height is enabled
+        onMounted(() => {
+            if (props.content.type === 'textarea' && props.content.dynamicHeight) {
+                nextTick(() => {
+                    adjustTextareaHeight();
+                });
+            }
+        });
+
         const textareaBindings = computed(() => ({
             ...props.wwElementState.props.attributes,
             value: displayValue.value,
@@ -518,8 +570,8 @@ export default {
             readonly: isReadonly.value || isEditing.value,
             required: props.content.required,
             placeholder: wwLib.wwLang.getText(props.content.placeholder),
-            rows: props.content.rows,
-            style: [style.value, { resize: props.content.resize ? '' : 'none' }],
+            rows: props.content.dynamicHeight ? 1 : props.content.rows,
+            style: [style.value, { resize: props.content.resize && !props.content.dynamicHeight ? '' : 'none' }],
         }));
 
         const inputClasses = computed(() => ({
@@ -643,6 +695,8 @@ export default {
             inputClasses,
             onEnter,
             handleColorInputClick,
+            dynamicHeightStyle,
+            handleTextareaInput,
             // Currency-related
             handleCurrencyInput,
             handleCurrencyKeydown,

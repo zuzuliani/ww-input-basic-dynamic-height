@@ -35,6 +35,7 @@ Properties:
 - placeholder: string|number - Placeholder text. Default: {}
 - rows: number - Textarea rows (1-25). Default: 4
 - resize: boolean - Textarea resizable. Default: false
+- dynamicHeight: boolean - Dynamic height for textarea (auto-adjusts to content). Default: false
 - min: number - Min value (0-100). Default: 0
 - max: number - Max value (0-10000). Default: 10000
 - minDate: string - Min date (yyyy-mm-dd). Default: ""
